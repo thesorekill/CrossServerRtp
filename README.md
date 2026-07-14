@@ -3,7 +3,7 @@
 **SorekillRTP** is a high-performance, cross-server Random Teleport (RTP) and respawn management plugin built for modern Minecraft networks.  
 It supports local and cross-server RTP, **cross-server respawns**, multiple worlds (Overworld, Nether, End), Redis-backed coordination, and strict safety checks designed for large SMP environments.
 
-Designed for **Paper / Spigot backends** behind **Velocity** or **BungeeCord / Waterfall**.
+Designed for **Paper backends** behind **Velocity** or **BungeeCord / Waterfall**.
 
 ---
 
@@ -72,8 +72,9 @@ All respawn behavior is controlled via configuration and can differ per server.
 ## 🧩 Supported Platforms
 
 **Backends**
-- Paper (recommended)
-- Spigot
+- Paper 1.21.x
+- Paper 26.1.2
+- Paper 26.2
 
 **Proxies**
 - Velocity
@@ -87,8 +88,9 @@ All respawn behavior is controlled via configuration and can differ per server.
 
 ## 📦 Requirements
 
-- Java 17 or newer
-- Paper or Spigot server
+- Java 21 for Paper 1.21.x
+- Java 25 for Paper 26.1.2 and 26.2
+- A supported Paper server version listed above
 - (Optional) Redis server for cross-server RTP and respawns
 
 ---

@@ -5,13 +5,18 @@
 
     <groupId>net.chumbucket</groupId>
     <artifactId>sorekillrtp</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <name>SorekillRTP</name>
     <description>Cross-server random teleport using Velocity + Redis works by itself too.</description>
 
     <properties>
         <java.version>21</java.version>
-        <paper.api.version>1.20.6-R0.1-SNAPSHOT</paper.api.version>
+        <!--
+            Compile the release artifact against the oldest supported Paper API.
+            Bukkit/Paper plugins are forward compatible, so this keeps one JAR
+            loadable on Paper 1.21.x, 26.1.2, and 26.2.
+        -->
+        <paper.api.version>1.21-R0.1-SNAPSHOT</paper.api.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -122,4 +127,29 @@
             </plugin>
         </plugins>
     </build>
+
+    <!--
+        Optional source-compatibility checks for the post-1.21 Paper API. Run
+        these profiles with JDK 25 and override paper.api.version with the exact
+        build published by Paper when necessary, for example:
+
+          mvn -Ppaper-26.2 -Dpaper.api.version=26.2.build.60-beta clean verify
+
+        The profiles intentionally do not change plugin.yml's api-version; the
+        produced plugin remains loadable on every supported 1.21.x server.
+    -->
+    <profiles>
+        <profile>
+            <id>paper-26.1.2</id>
+            <properties>
+                <paper.api.version>26.1.2.build.74-stable</paper.api.version>
+            </properties>
+        </profile>
+        <profile>
+            <id>paper-26.2</id>
+            <properties>
+                <paper.api.version>26.2.build.60-beta</paper.api.version>
+            </properties>
+        </profile>
+    </profiles>
 </project>
