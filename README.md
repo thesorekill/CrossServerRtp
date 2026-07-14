@@ -91,10 +91,21 @@ All respawn behavior is controlled via configuration and can differ per server.
 
 ## 📦 Requirements
 
-- Java 21 for Paper/Spigot 1.21.x
-- Java 25 for Paper/Spigot 26.1.2 and 26.2
-- A supported server version listed above
-- (Optional) Redis server for cross-server RTP and respawns
+**Single-server use**
+
+- Paper or Spigot 1.21.x running Java 21
+- Paper or Spigot 26.1.2/26.2 running Java 25
+
+**Cross-server RTP and respawns**
+
+- The same SorekillRTP version installed on every participating backend
+- Velocity, BungeeCord, or Waterfall connecting the backend servers
+- A Redis server reachable by every participating backend
+- Matching Redis credentials, database, and key prefix in every backend's `config.yml`
+- A unique `server-name` on each backend that exactly matches its proxy server name
+- For Velocity, `bungee-plugin-message-channel = true` in `velocity.toml`, followed by a full proxy restart
+
+Redis and a proxy are not required when RTP is used only within one server.
 
 ---
 
