@@ -294,10 +294,9 @@ public final class JoinFinalizeListener implements Listener {
         int cx = loc.getBlockX() >> 4;
         int cz = loc.getBlockZ() >> 4;
 
-        w.getChunkAtAsync(cx, cz).whenComplete((chunk, ex) -> Bukkit.getScheduler().runTask(plugin, () -> {
-            if (!p.isOnline()) return;
-
-            if (ex != null) {
+        try {
+            w.getChunkAt(cx, cz);
+            if (!p.isOnline() || !p.teleport(loc)) {
                 plugin.messages().send(p, "errors.no-safe-location");
                 SoundUtil.playConfigured(plugin, p, "sounds.teleport_unsuccessful");
                 bumpOrDeletePendingAsync(pendingKey, pending);
@@ -305,32 +304,20 @@ public final class JoinFinalizeListener implements Listener {
                 return;
             }
 
-            p.teleportAsync(loc).whenComplete((ok, tex) -> Bukkit.getScheduler().runTask(plugin, () -> {
-                if (!p.isOnline()) return;
-
-                if (tex != null || ok == null || !ok) {
-                    plugin.messages().send(p, "errors.no-safe-location");
-                    SoundUtil.playConfigured(plugin, p, "sounds.teleport_unsuccessful");
-                    bumpOrDeletePendingAsync(pendingKey, pending);
-                    unfreezePlayer(p);
-                    return;
-                }
-
-                // Anchor consume (shared-spawn route only)
-                if (isSharedSpawnRoute && respectAnchorSpawn()) {
-                    consumeAnchorChargeIfPresent(p, pending);
-                }
-
-                // Success: delete pending
-                deleteKeyAsync(pendingKey);
-
-                // Restore immediately BEFORE messages/sounds (so player can move)
-                unfreezePlayer(p);
-
-                plugin.messages().send(p, "success.teleported", Map.of("world", pending.world()));
-                SoundUtil.playConfigured(plugin, p, "sounds.teleport_successful");
-            }));
-        }));
+            if (isSharedSpawnRoute && respectAnchorSpawn()) {
+                consumeAnchorChargeIfPresent(p, pending);
+            }
+            deleteKeyAsync(pendingKey);
+            unfreezePlayer(p);
+            plugin.messages().send(p, "success.teleported", Map.of("world", pending.world()));
+            SoundUtil.playConfigured(plugin, p, "sounds.teleport_successful");
+        } catch (RuntimeException ex) {
+            plugin.getLogger().warning("Failed to finalize cross-server teleport: " + ex.getMessage());
+            plugin.messages().send(p, "errors.no-safe-location");
+            SoundUtil.playConfigured(plugin, p, "sounds.teleport_unsuccessful");
+            bumpOrDeletePendingAsync(pendingKey, pending);
+            unfreezePlayer(p);
+        }
     }
 
     // ---------------- seamless freeze helpers ----------------

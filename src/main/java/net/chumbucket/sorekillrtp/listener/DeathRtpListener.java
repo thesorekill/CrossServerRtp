@@ -297,7 +297,7 @@ public final class DeathRtpListener implements Listener {
     private void awaitThenSwitch(Player p, UUID uuid, DeathPlan plan) {
         if (p == null || !p.isOnline()) return;
 
-        final long startTick = Bukkit.getCurrentTick();
+        final long[] elapsedTicks = {0L};
         final BukkitTask[] taskRef = new BukkitTask[1];
 
         taskRef[0] = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
@@ -307,8 +307,8 @@ public final class DeathRtpListener implements Listener {
                 return;
             }
 
-            long elapsed = Bukkit.getCurrentTick() - startTick;
-            if (elapsed >= REMOTE_AWAIT_MAX_TICKS) {
+            elapsedTicks[0] += REMOTE_AWAIT_POLL_TICKS;
+            if (elapsedTicks[0] >= REMOTE_AWAIT_MAX_TICKS) {
                 // give up; remove mask naturally, and fall back to local-only (don’t remote compute here)
                 if (taskRef[0] != null) taskRef[0].cancel();
                 cleanup(uuid);

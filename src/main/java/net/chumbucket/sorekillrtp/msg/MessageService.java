@@ -8,12 +8,13 @@
 package net.chumbucket.sorekillrtp.msg;
 
 import net.chumbucket.sorekillrtp.SorekillRTPPlugin;
-import net.kyori.adventure.audience.Audience;
-import net.kyori.adventure.bossbar.BossBar;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
-import net.kyori.adventure.title.Title;
+import net.md_5.bungee.api.ChatMessageType;
+import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarStyle;
+import org.bukkit.boss.BossBar;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -21,52 +22,40 @@ import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
-import java.lang.reflect.Method;
-import java.time.Duration;
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+/** Messaging implemented only with the Spigot API so it also runs on Paper. */
 public final class MessageService {
-
-    private static final LegacyComponentSerializer LEGACY_AMP =
-            LegacyComponentSerializer.builder()
-                    .character('&')
-                    .hexColors()
-                    .build();
 
     private final SorekillRTPPlugin plugin;
     private final FileConfiguration messages;
-
     private final boolean chatEnabled;
     private final boolean actionbarEnabled;
     private final boolean bossbarEnabled;
     private final boolean titleEnabled;
     private final boolean toastEnabled;
-
-    private final Title.Times titleTimes;
-
-    // ---- BossBar config ----
+    private final int titleFadeInTicks;
+    private final int titleStayTicks;
+    private final int titleFadeOutTicks;
     private final int bossbarSeconds;
-    private final float bossbarProgress;
-    private final BossBar.Color bossbarColor;
-    private final BossBar.Overlay bossbarOverlay;
-
-    // ---- BossBar state (per-player) ----
+    private final double bossbarProgress;
+    private final BarColor bossbarColor;
+    private final BarStyle bossbarStyle;
     private final Map<UUID, BossBar> activeBossBars = new ConcurrentHashMap<>();
     private final Map<UUID, BukkitTask> bossbarHideTasks = new ConcurrentHashMap<>();
 
-    private MessageService(SorekillRTPPlugin plugin,
-                           FileConfiguration messages,
-                           boolean chatEnabled,
-                           boolean actionbarEnabled,
-                           boolean bossbarEnabled,
-                           boolean titleEnabled,
-                           boolean toastEnabled,
-                           Title.Times titleTimes,
-                           int bossbarSeconds,
-                           float bossbarProgress,
-                           BossBar.Color bossbarColor,
-                           BossBar.Overlay bossbarOverlay) {
+    private MessageService(SorekillRTPPlugin plugin, FileConfiguration messages,
+                           boolean chatEnabled, boolean actionbarEnabled,
+                           boolean bossbarEnabled, boolean titleEnabled,
+                           boolean toastEnabled, int titleFadeInTicks,
+                           int titleStayTicks, int titleFadeOutTicks,
+                           int bossbarSeconds, double bossbarProgress,
+                           BarColor bossbarColor, BarStyle bossbarStyle) {
         this.plugin = plugin;
         this.messages = messages;
         this.chatEnabled = chatEnabled;
@@ -74,61 +63,37 @@ public final class MessageService {
         this.bossbarEnabled = bossbarEnabled;
         this.titleEnabled = titleEnabled;
         this.toastEnabled = toastEnabled;
-        this.titleTimes = titleTimes;
-
+        this.titleFadeInTicks = titleFadeInTicks;
+        this.titleStayTicks = titleStayTicks;
+        this.titleFadeOutTicks = titleFadeOutTicks;
         this.bossbarSeconds = bossbarSeconds;
         this.bossbarProgress = bossbarProgress;
         this.bossbarColor = bossbarColor;
-        this.bossbarOverlay = bossbarOverlay;
+        this.bossbarStyle = bossbarStyle;
     }
 
     public static MessageService load(SorekillRTPPlugin plugin) {
-        File msgFile = new File(plugin.getDataFolder(), "messages.yml");
-        FileConfiguration msgCfg = YamlConfiguration.loadConfiguration(msgFile);
+        FileConfiguration cfg = plugin.getConfig();
+        FileConfiguration messages = YamlConfiguration.loadConfiguration(
+                new File(plugin.getDataFolder(), "messages.yml"));
 
-        boolean chat = plugin.getConfig().getBoolean("messages.chat", true);
-        boolean actionbar = plugin.getConfig().getBoolean("messages.actionbar", false);
-        boolean bossbar = plugin.getConfig().getBoolean("messages.bossbar", false);
-
-        boolean title = plugin.getConfig().getBoolean("messages.title", false);
-        boolean toast = plugin.getConfig().getBoolean("messages.toast", false);
-
-        int fadeInTicks = Math.max(0, plugin.getConfig().getInt("messages.title_fade_in_ticks", 10));
-        int stayTicks   = Math.max(0, plugin.getConfig().getInt("messages.title_stay_ticks", 40));
-        int fadeOutTicks = Math.max(0, plugin.getConfig().getInt("messages.title_fade_out_ticks", 10));
-
-        Title.Times times = Title.Times.times(
-                Duration.ofMillis(fadeInTicks * 50L),
-                Duration.ofMillis(stayTicks * 50L),
-                Duration.ofMillis(fadeOutTicks * 50L)
-        );
-
-        // Bossbar knobs (safe defaults)
-        int bbSeconds = plugin.getConfig().getInt("messages.bossbar_seconds", 5);
-        if (bbSeconds < 0) bbSeconds = 0;
-
-        double bbProgD = plugin.getConfig().getDouble("messages.bossbar_progress", 1.0);
-        float bbProg = (float) Math.max(0.0, Math.min(1.0, bbProgD));
-
-        String bbColorRaw = plugin.getConfig().getString("messages.bossbar_color", "BLUE");
-        BossBar.Color bbColor = parseBossBarColor(bbColorRaw, BossBar.Color.BLUE);
-
-        String bbOverlayRaw = plugin.getConfig().getString("messages.bossbar_overlay", "PROGRESS");
-        BossBar.Overlay bbOverlay = parseBossBarOverlay(bbOverlayRaw, BossBar.Overlay.PROGRESS);
+        int seconds = Math.max(0, cfg.getInt("messages.bossbar_seconds", 5));
+        double progress = Math.max(0.0, Math.min(1.0,
+                cfg.getDouble("messages.bossbar_progress", 1.0)));
 
         return new MessageService(
-                plugin,
-                msgCfg,
-                chat,
-                actionbar,
-                bossbar,
-                title,
-                toast,
-                times,
-                bbSeconds,
-                bbProg,
-                bbColor,
-                bbOverlay
+                plugin, messages,
+                cfg.getBoolean("messages.chat", true),
+                cfg.getBoolean("messages.actionbar", false),
+                cfg.getBoolean("messages.bossbar", false),
+                cfg.getBoolean("messages.title", false),
+                cfg.getBoolean("messages.toast", false),
+                Math.max(0, cfg.getInt("messages.title_fade_in_ticks", 10)),
+                Math.max(0, cfg.getInt("messages.title_stay_ticks", 40)),
+                Math.max(0, cfg.getInt("messages.title_fade_out_ticks", 10)),
+                seconds, progress,
+                parseEnum(BarColor.class, cfg.getString("messages.bossbar_color"), BarColor.BLUE),
+                parseEnum(BarStyle.class, cfg.getString("messages.bossbar_overlay"), BarStyle.SOLID)
         );
     }
 
@@ -138,261 +103,110 @@ public final class MessageService {
 
     public void send(CommandSender to, String path, Map<String, String> placeholders) {
         if (to == null || path == null || path.isBlank()) return;
-
         List<String> lines = resolveLines(path);
         if (lines.isEmpty()) return;
+        Map<String, String> ph = placeholders == null ? Collections.emptyMap() : placeholders;
 
-        Map<String, String> ph = (placeholders == null) ? Collections.emptyMap() : placeholders;
-
-        // Build multi-line chat component
-        Component chatComponent = Component.empty();
-        boolean first = true;
-
-        for (String rawLine : lines) {
-            String line = applyPlaceholders(rawLine, ph);
-            if (line == null) continue;
-            line = line.trim();
+        String first = null;
+        for (String raw : lines) {
+            String line = color(applyPlaceholders(raw, ph).trim());
             if (line.isEmpty()) continue;
-
-            Component c = LEGACY_AMP.deserialize(line);
-            if (first) {
-                chatComponent = c;
-                first = false;
-            } else {
-                chatComponent = chatComponent.append(Component.newline()).append(c);
-            }
+            if (first == null) first = line;
+            if (chatEnabled) to.sendMessage(line);
         }
 
-        if (first) return; // everything became blank
+        if (first == null || !(to instanceof Player player)) return;
+        final String display = first;
 
-        Audience audience = (to instanceof Audience a) ? a : null;
-
-        // Fallback path without ChatColor (no deprecations)
-        if (audience == null) {
-            if (chatEnabled) {
-                for (String rawLine : lines) {
-                    String line = applyPlaceholders(rawLine, ph);
-                    if (line == null) continue;
-                    line = line.trim();
-                    if (line.isEmpty()) continue;
-
-                    Component c = LEGACY_AMP.deserialize(line);
-                    String legacy = LEGACY_AMP.serialize(c);
-                    to.sendMessage(legacy);
-                }
-            }
-            return;
+        if (actionbarEnabled) {
+            player.spigot().sendMessage(ChatMessageType.ACTION_BAR,
+                    TextComponent.fromLegacyText(display));
         }
-
-        if (chatEnabled) {
-            audience.sendMessage(chatComponent);
+        if (bossbarEnabled) showBossBar(player, display);
+        if (titleEnabled) {
+            player.sendTitle(display, "", titleFadeInTicks, titleStayTicks, titleFadeOutTicks);
         }
-
-        Component single = null;
-
-        if ((actionbarEnabled || bossbarEnabled || titleEnabled || toastEnabled) && to instanceof Player) {
-            single = firstNonEmptyLineComponent(lines, ph);
-        }
-
-        if (actionbarEnabled && to instanceof Player p) {
-            if (single != null) p.sendActionBar(single);
-        }
-
-        if (bossbarEnabled && to instanceof Player p) {
-            if (single != null) showBossBar(p, single);
-        }
-
-        if (titleEnabled && to instanceof Player) {
-            if (single != null) {
-                Title title = Title.title(single, Component.empty(), titleTimes);
-                audience.showTitle(title);
-            }
-        }
-
-        if (toastEnabled && to instanceof Player p) {
-            if (single != null) showToastBestEffort(p, single);
+        // Stock Spigot has no toast API. Preserve the setting without making it
+        // a runtime requirement; chat/title/actionbar/bossbar remain portable.
+        if (toastEnabled) {
+            plugin.getLogger().fine("Toast messages are unavailable on stock Spigot.");
         }
     }
 
     private List<String> resolveLines(String path) {
-        Object o = messages.get(path);
-
-        if (o instanceof String s) {
-            s = (s == null) ? "" : s.trim();
-            if (s.isEmpty()) return List.of();
-            return List.of(s);
+        Object value = messages.get(path);
+        if (value instanceof String text) {
+            return text.isBlank() ? List.of() : List.of(text);
         }
-
-        if (o instanceof List<?> list) {
-            return list.stream()
-                    .map(x -> x == null ? "" : String.valueOf(x))
-                    .toList();
+        if (value instanceof List<?> list) {
+            return list.stream().map(v -> v == null ? "" : String.valueOf(v)).toList();
         }
-
         return List.of();
     }
 
     private static String applyPlaceholders(String raw, Map<String, String> placeholders) {
-        if (raw == null) return null;
-        String msg = raw;
-
-        if (!placeholders.isEmpty()) {
-            for (var e : placeholders.entrySet()) {
-                String key = e.getKey();
-                if (key == null || key.isBlank()) continue;
-                String val = (e.getValue() == null) ? "" : e.getValue();
-                msg = msg.replace("{" + key + "}", val);
-            }
+        String result = raw == null ? "" : raw;
+        for (Map.Entry<String, String> entry : placeholders.entrySet()) {
+            if (entry.getKey() == null || entry.getKey().isBlank()) continue;
+            result = result.replace("{" + entry.getKey() + "}",
+                    entry.getValue() == null ? "" : entry.getValue());
         }
-        return msg;
+        return result;
     }
 
-    private Component firstNonEmptyLineComponent(List<String> lines, Map<String, String> placeholders) {
-        for (String rawLine : lines) {
-            String line = applyPlaceholders(rawLine, placeholders);
-            if (line == null) continue;
-            line = line.trim();
-            if (line.isEmpty()) continue;
-            return LEGACY_AMP.deserialize(line);
-        }
-        return null;
+    private static String color(String message) {
+        return ChatColor.translateAlternateColorCodes('&', message);
     }
 
-    // ---------------- BossBar implementation ----------------
+    private void showBossBar(Player player, String title) {
+        if (!player.isOnline() || bossbarSeconds <= 0) return;
+        Runnable action = () -> {
+            UUID uuid = player.getUniqueId();
+            BukkitTask oldTask = bossbarHideTasks.remove(uuid);
+            if (oldTask != null) oldTask.cancel();
 
-    private void showBossBar(Player player, Component name) {
-        if (player == null || !player.isOnline()) return;
+            BossBar oldBar = activeBossBars.remove(uuid);
+            if (oldBar != null) oldBar.removeAll();
 
-        // If "0 seconds", treat as disabled (don’t show)
-        if (bossbarSeconds <= 0) return;
-
-        UUID uuid = player.getUniqueId();
-
-        Runnable doShow = () -> {
-            if (!player.isOnline()) return;
-
-            // Cancel any pending hide
-            BukkitTask oldHide = bossbarHideTasks.remove(uuid);
-            if (oldHide != null) oldHide.cancel();
-
-            BossBar bar = activeBossBars.get(uuid);
-            if (bar == null) {
-                bar = BossBar.bossBar(name, bossbarProgress, bossbarColor, bossbarOverlay);
-                activeBossBars.put(uuid, bar);
-
-                // Show
-                player.showBossBar(bar);
-            } else {
-                // Update existing
-                bar.name(name);
-                bar.progress(bossbarProgress);
-                bar.color(bossbarColor);
-                bar.overlay(bossbarOverlay);
-
-                // Ensure it’s visible (safe even if already visible)
-                player.showBossBar(bar);
-            }
-
-            // Schedule auto-hide
-            BukkitTask hideTask = Bukkit.getScheduler().runTaskLater(plugin, () -> hideBossBar(player), bossbarSeconds * 20L);
-            bossbarHideTasks.put(uuid, hideTask);
+            BossBar bar = Bukkit.createBossBar(title, bossbarColor, bossbarStyle);
+            bar.setProgress(bossbarProgress);
+            bar.addPlayer(player);
+            activeBossBars.put(uuid, bar);
+            bossbarHideTasks.put(uuid, Bukkit.getScheduler().runTaskLater(
+                    plugin, () -> hideBossBar(uuid), bossbarSeconds * 20L));
         };
-
-        // BossBar show/hide should be on main thread
-        if (!Bukkit.isPrimaryThread()) {
-            Bukkit.getScheduler().runTask(plugin, doShow);
-        } else {
-            doShow.run();
-        }
+        runSync(action);
     }
 
-    private void hideBossBar(Player player) {
-        if (player == null) return;
-
-        UUID uuid = player.getUniqueId();
-
-        // Cancel any pending hide (we're executing it now anyway)
-        BukkitTask t = bossbarHideTasks.remove(uuid);
-        if (t != null) t.cancel();
-
+    private void hideBossBar(UUID uuid) {
+        BukkitTask task = bossbarHideTasks.remove(uuid);
+        if (task != null) task.cancel();
         BossBar bar = activeBossBars.remove(uuid);
-        if (bar == null) return;
-
-        if (!player.isOnline()) return;
-
-        // Must be main thread
-        if (!Bukkit.isPrimaryThread()) {
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                if (player.isOnline()) player.hideBossBar(bar);
-            });
-            return;
-        }
-
-        player.hideBossBar(bar);
+        if (bar != null) bar.removeAll();
     }
 
-    /**
-     * Optional: call this from plugin.onDisable() if you want to force-clear bossbars.
-     * Not required, but nice if you reload a lot.
-     */
     public void shutdown() {
-        // Must be main thread to hide bars on players safely
-        Runnable r = () -> {
-            for (var e : bossbarHideTasks.entrySet()) {
-                try { e.getValue().cancel(); } catch (Exception ignored) {}
-            }
+        runSync(() -> {
+            bossbarHideTasks.values().forEach(BukkitTask::cancel);
             bossbarHideTasks.clear();
-
-            for (var e : activeBossBars.entrySet()) {
-                UUID uuid = e.getKey();
-                BossBar bar = e.getValue();
-                Player p = Bukkit.getPlayer(uuid);
-                if (p != null && p.isOnline()) {
-                    try { p.hideBossBar(bar); } catch (Exception ignored) {}
-                }
-            }
+            activeBossBars.values().forEach(BossBar::removeAll);
             activeBossBars.clear();
-        };
-
-        if (!Bukkit.isPrimaryThread()) Bukkit.getScheduler().runTask(plugin, r);
-        else r.run();
+        });
     }
 
-    private static BossBar.Color parseBossBarColor(String raw, BossBar.Color def) {
-        if (raw == null) return def;
-        try {
-            return BossBar.Color.valueOf(raw.trim().toUpperCase(Locale.ROOT));
-        } catch (Exception ignored) {
-            return def;
-        }
+    private void runSync(Runnable action) {
+        if (Bukkit.isPrimaryThread()) action.run();
+        else Bukkit.getScheduler().runTask(plugin, action);
     }
 
-    private static BossBar.Overlay parseBossBarOverlay(String raw, BossBar.Overlay def) {
-        if (raw == null) return def;
+    private static <E extends Enum<E>> E parseEnum(Class<E> type, String raw, E fallback) {
+        if (raw == null || raw.isBlank()) return fallback;
+        String normalized = raw.trim().toUpperCase(Locale.ROOT);
+        if (type == BarStyle.class && normalized.equals("PROGRESS")) normalized = "SOLID";
         try {
-            return BossBar.Overlay.valueOf(raw.trim().toUpperCase(Locale.ROOT));
-        } catch (Exception ignored) {
-            return def;
-        }
-    }
-
-    // ---------------- Toast ----------------
-
-    private void showToastBestEffort(Player player, Component component) {
-        try {
-            try {
-                Method m = player.getClass().getMethod("sendToast", Component.class);
-                m.invoke(player, component);
-                return;
-            } catch (NoSuchMethodException ignored) {}
-
-            try {
-                Method m = player.getClass().getMethod("showToast", Component.class);
-                m.invoke(player, component);
-            } catch (NoSuchMethodException ignored) {}
-
-        } catch (Throwable t) {
-            plugin.getLogger().fine("Toast failed (ignored): " + t.getMessage());
+            return Enum.valueOf(type, normalized);
+        } catch (IllegalArgumentException ignored) {
+            return fallback;
         }
     }
 }

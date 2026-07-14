@@ -454,8 +454,8 @@ public final class RtpService {
 
     /**
      * Preloads the destination chunk before teleporting.
-     * - Preload runs async (Paper).
-     * - Teleport is executed on main thread via teleportAsync.
+     * Uses the synchronous Bukkit API so this path works on both Spigot and Paper.
+     * The caller invokes this method on the server thread.
      */
     private void preloadThenTeleport(Player player,
                                      Location loc,
@@ -479,31 +479,17 @@ public final class RtpService {
         int cx = loc.getBlockX() >> 4;
         int cz = loc.getBlockZ() >> 4;
 
-        w.getChunkAtAsync(cx, cz).whenComplete((chunk, ex) -> Bukkit.getScheduler().runTask(plugin, () -> {
-            if (!player.isOnline()) {
+        try {
+            w.getChunkAt(cx, cz);
+            if (!player.isOnline() || !player.teleport(loc)) {
                 if (onFailSync != null) onFailSync.run();
                 return;
             }
-
-            if (ex != null) {
-                if (onFailSync != null) onFailSync.run();
-                return;
-            }
-
-            player.teleportAsync(loc).whenComplete((ok, tex) -> Bukkit.getScheduler().runTask(plugin, () -> {
-                if (!player.isOnline()) {
-                    if (onFailSync != null) onFailSync.run();
-                    return;
-                }
-
-                if (tex != null || ok == null || !ok) {
-                    if (onFailSync != null) onFailSync.run();
-                    return;
-                }
-
-                if (afterTeleportSync != null) afterTeleportSync.run();
-            }));
-        }));
+            if (afterTeleportSync != null) afterTeleportSync.run();
+        } catch (RuntimeException ex) {
+            plugin.getLogger().warning("Failed to load destination chunk or teleport: " + ex.getMessage());
+            if (onFailSync != null) onFailSync.run();
+        }
     }
 
     private void deleteKeyAsync(String key) {

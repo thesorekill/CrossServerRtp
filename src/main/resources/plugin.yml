@@ -1,8 +1,8 @@
 name: SorekillRTP
 main: net.chumbucket.sorekillrtp.SorekillRTPPlugin
-version: 1.1.0
-# Keep this at the oldest supported API so the same JAR loads on all 1.21.x,
-# 26.1.2, and 26.2 Paper servers.
+version: 1.2.0
+# Keep this at the oldest supported API so the same JAR loads on Paper and
+# Spigot 1.21.x, 26.1.2, and 26.2 servers.
 api-version: "1.21"
 author: Chumbucket
 

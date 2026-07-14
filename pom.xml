@@ -5,22 +5,28 @@
 
     <groupId>net.chumbucket</groupId>
     <artifactId>sorekillrtp</artifactId>
-    <version>1.1.0</version>
+    <version>1.2.0</version>
     <name>SorekillRTP</name>
     <description>Cross-server random teleport using Velocity + Redis works by itself too.</description>
 
     <properties>
         <java.version>21</java.version>
         <!--
-            Compile the release artifact against the oldest supported Paper API.
-            Bukkit/Paper plugins are forward compatible, so this keeps one JAR
-            loadable on Paper 1.21.x, 26.1.2, and 26.2.
+            Compile against the oldest supported Spigot API. Paper implements
+            this API, keeping one JAR loadable on both platforms across 1.21.x,
+            26.1.2, and 26.2.
         -->
-        <paper.api.version>1.21-R0.1-SNAPSHOT</paper.api.version>
+        <platform.api.group>org.spigotmc</platform.api.group>
+        <platform.api.artifact>spigot-api</platform.api.artifact>
+        <platform.api.version>1.21-R0.1-SNAPSHOT</platform.api.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
     <repositories>
+        <repository>
+            <id>spigotmc-snapshots</id>
+            <url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url>
+        </repository>
         <repository>
             <id>papermc</id>
             <url>https://repo.papermc.io/repository/maven-public/</url>
@@ -28,11 +34,11 @@
     </repositories>
 
     <dependencies>
-        <!-- Paper API (provided by the server at runtime) -->
+        <!-- Spigot API (provided by the server at runtime) -->
         <dependency>
-            <groupId>io.papermc.paper</groupId>
-            <artifactId>paper-api</artifactId>
-            <version>${paper.api.version}</version>
+            <groupId>${platform.api.group}</groupId>
+            <artifactId>${platform.api.artifact}</artifactId>
+            <version>${platform.api.version}</version>
             <scope>provided</scope>
         </dependency>
 
@@ -129,26 +135,49 @@
     </build>
 
     <!--
-        Optional source-compatibility checks for the post-1.21 Paper API. Run
-        these profiles with JDK 25 and override paper.api.version with the exact
-        build published by Paper when necessary, for example:
+        Optional source-compatibility checks for the post-1.21 Spigot API. Run
+        these profiles with JDK 25, for example:
 
-          mvn -Ppaper-26.2 -Dpaper.api.version=26.2.build.60-beta clean verify
+          mvn -Pspigot-26.2 clean verify
 
         The profiles intentionally do not change plugin.yml's api-version; the
         produced plugin remains loadable on every supported 1.21.x server.
     -->
     <profiles>
         <profile>
+            <id>spigot-26.1.2</id>
+            <properties>
+                <platform.api.version>26.1.2-R0.1-SNAPSHOT</platform.api.version>
+            </properties>
+        </profile>
+        <profile>
+            <id>spigot-26.2</id>
+            <properties>
+                <platform.api.version>26.2-R0.1-SNAPSHOT</platform.api.version>
+            </properties>
+        </profile>
+        <profile>
+            <id>paper-1.21</id>
+            <properties>
+                <platform.api.group>io.papermc.paper</platform.api.group>
+                <platform.api.artifact>paper-api</platform.api.artifact>
+                <platform.api.version>1.21-R0.1-SNAPSHOT</platform.api.version>
+            </properties>
+        </profile>
+        <profile>
             <id>paper-26.1.2</id>
             <properties>
-                <paper.api.version>26.1.2.build.74-stable</paper.api.version>
+                <platform.api.group>io.papermc.paper</platform.api.group>
+                <platform.api.artifact>paper-api</platform.api.artifact>
+                <platform.api.version>26.1.2.build.74-stable</platform.api.version>
             </properties>
         </profile>
         <profile>
             <id>paper-26.2</id>
             <properties>
-                <paper.api.version>26.2.build.60-beta</paper.api.version>
+                <platform.api.group>io.papermc.paper</platform.api.group>
+                <platform.api.artifact>paper-api</platform.api.artifact>
+                <platform.api.version>26.2.build.60-beta</platform.api.version>
             </properties>
         </profile>
     </profiles>
